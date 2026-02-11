@@ -54,7 +54,6 @@ textarea:focus-visible,
     background-attachment: fixed;
  
 }
-
 .main-content {
   padding: 2rem;
   max-width: 1400px;
@@ -1081,4 +1080,258 @@ hr.divider {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+/* 🔴 NEW STYLE START */
+.custom-dist-toggle {
+  margin-top: 12px;
+  font-weight: 500;
+}
+
+.pool-distribution-box {
+  margin-top: 15px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.pool-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.pool-row span {
+  font-weight: 500;
+}
+
+.pool-row input {
+  width: 80px;
+  padding: 5px;
+}
+/* 🔴 NEW STYLE END */
+/* ===== CUSTOM POOL DISTRIBUTION STYLES ===== */
+.custom-dist-toggle {
+  background-color: #f8fafc;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-weight: 600;
+  color: #D22D64;
+  display: block;
+  cursor: pointer;
+}
+
+.pool-distribution-box {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-top: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.pool-distribution-item {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: border-color 0.2s;
+}
+
+.pool-distribution-item:hover {
+  border-color: #D22D64;
+}
+
+.pool-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.pool-header strong {
+  color: #1f2937;
+  font-size: 1.05rem;
+}
+
+.pool-header span {
+  font-size: 0.85rem;
+  color: #6b7280;
+  background: #e5e7eb;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.difficulty-inputs-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.difficulty-input-group {
+  flex: 1;
+}
+
+.difficulty-input-group label {
+  display: block;
+  font-size: 0.8rem;
+  color: #4b5563;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.difficulty-input-group input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+}
+
+.difficulty-input-group input:focus {
+  border-color: #D22D64;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(210, 45, 100, 0.1);
+}
+
+.difficulty-input-group input.error {
+  border-color: #dc2626;
+  background-color: #fef2f2;
+}
+
+.difficulty-input-group label.error-text {
+  color: #dc2626;
+}
+
+.distribution-summary {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #fff1f2; /* Light pink background */
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #881337;
+}
+
+.distribution-summary strong {
+  font-size: 1.25rem;
+  color: #D22D64;
+}
+/* ===== FIXED TIMER ENHANCEMENTS ===== */
+
+/* Remove default padding from the test card so the header can touch the edges */
+.test-screen-card {
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+/* Add padding back to the non-sticky content */
+.test-screen-card > p, 
+.test-screen-card .question-block, 
+.test-screen-card .btn-full {
+    margin-left: 2rem;
+    margin-right: 2rem;
+}
+
+.sticky-test-header {
+    position: sticky;
+    top: 60px; /* Offset for your main Navbar which is also sticky */
+    z-index: 10;
+    background-color: white;
+    padding: 1.5rem 2rem;
+    border-bottom: 2px solid #e5e7eb;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.sticky-test-header .test-header {
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+/* Ensure the timer is highly visible in the sticky bar */
+.sticky-test-header .timer {
+    background: #1f2937;
+    color: #D22D64;
+    border: 2px solid #D22D64;
+}
+/* ===== PROFILE DROPDOWN STYLES ===== */
+.profile-container {
+    position: relative;
+    cursor: pointer;
+}
+
+.profile-trigger {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.15); /* Modern translucent background */
+    padding: 8px 18px;
+    border-radius: 50px;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.user-name-nav {
+    font-weight: 600;
+    color: white;
+}
+
+.profile-icon-nav {
+    width: 32px;
+    height: 32px;
+    background: white;
+    color: #D22D64; /* Amrita Primary Color */
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.profile-dropdown {
+    position: absolute;
+    right: 0;
+    top: 55px;
+    background: white;
+    min-width: 190px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+    z-index: 1000;
+    overflow: hidden;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.profile-dropdown button {
+    width: 100%;
+    padding: 12px 20px;
+    text-align: left;
+    background: none;
+    border: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+}
+
+.profile-dropdown button:hover {
+    background: #f8fafc;
+    color: #D22D64;
+}
+
+.profile-dropdown .logout-opt {
+    border-top: 1px solid #f1f5f9;
+    color: #dc2626; /* Red for logout */
+}
+
+.navbar {
+    overflow: visible; /* Required to show the dropdown */
 }
