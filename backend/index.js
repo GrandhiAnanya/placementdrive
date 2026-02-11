@@ -20,7 +20,7 @@ app.use(express.json());
 const serviceAccount = require('./serviceAccountKey.json');
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount)
 });
 
 const db = admin.firestore();
@@ -82,7 +82,7 @@ const verifyFirebaseToken = async (req, res, next) => {
         const decodedToken = await admin.auth().verifyIdToken(token);
         const userDoc = await db.collection('users').doc(decodedToken.uid).get();
         if (!userDoc.exists || userDoc.data().role !== 'admin') {
-             return res.status(403).send({ message: 'Forbidden: Admin access required.' });
+            return res.status(403).send({ message: 'Forbidden: Admin access required.' });
         }
         req.user = decodedToken; // Make decoded token available in the request
         next();
@@ -142,7 +142,7 @@ app.post('/api/admin/upload-users', verifyFirebaseToken, upload.single('usersFil
     let processedRowCount = 0;
 
     const readable = new stream.Readable();
-    readable._read = () => {};
+    readable._read = () => { };
     readable.push(req.file.buffer);
     readable.push(null);
 
@@ -308,7 +308,7 @@ app.post('/api/questions/upload', upload.single('questionsFile'), async (req, re
     const questionsToAdd = [];
 
     const readable = new stream.Readable();
-    readable._read = () => {};
+    readable._read = () => { };
     readable.push(req.file.buffer);
     readable.push(null);
 
@@ -319,7 +319,7 @@ app.post('/api/questions/upload', upload.single('questionsFile'), async (req, re
 
             // Validate required fields including the new difficulty field
             if (topic && questionText && option1 && option2 && correctOptionIndex !== undefined && difficulty) {
-                 questionsToAdd.push({
+                questionsToAdd.push({
                     courseId,
                     poolId,
                     topic,
@@ -383,7 +383,7 @@ app.delete('/api/questions/:questionId', async (req, res) => {
 });
 
 
-// --- TEST RELEASE ROUTES (UPDATED for scheduledEnd) ---
+// --- TEST RELEASE ROUTES (UPDATED) ---
 
 // Faculty Route: Release a Test - RANDOM SAMPLING
 app.post('/api/tests/release-random', async (req, res) => {
@@ -399,23 +399,21 @@ app.post('/api/tests/release-random', async (req, res) => {
             difficultyDistribution,
             selectedPoolIds,
             createdBy,
-            endOption,          // <<< NEW
-            endDate,            // <<< NEW
-            endTime             // <<< NEW
+            endOption,
+            endDate,
+            endTime,
+            // 🔴 NEW FIELDS FROM FRONTEND
+            customPoolDistribution,
+            poolQuestionMap
         } = req.body;
 
-        if (!testName || !courseId || !durationMinutes || !totalQuestions || !difficultyDistribution || !createdBy || selectedPoolIds.length === 0) {
-            return res.status(400).send({ message: "Missing required test parameters (Test Name, Pool Selection, Total Questions, Distribution)." });
-        }
-
-        const totalPercentage = difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard;
-        if (totalPercentage !== 100) {
-            return res.status(400).send({ message: "Difficulty percentages must sum to 100." });
+        if (!testName || !courseId || !durationMinutes || !createdBy || selectedPoolIds.length === 0) {
+            return res.status(400).send({ message: "Missing required test parameters." });
         }
 
         // 1. Fetch ALL relevant questions from the selected pools
         if (selectedPoolIds.length > 10) {
-             return res.status(400).send({ message: "Please select 10 or fewer pools for question filtering (Firestore limit)." });
+            return res.status(400).send({ message: "Please select 10 or fewer pools for question filtering (Firestore limit)." });
         }
 
         const questionsSnapshot = await db.collection('questions')
@@ -424,45 +422,92 @@ app.post('/api/tests/release-random', async (req, res) => {
             .get();
 
         const allQuestions = questionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        let selectedQuestionIds = [];
 
-        if (allQuestions.length < totalQuestions) {
-             return res.status(400).send({ message: `Insufficient questions (${allQuestions.length} available in selected pools) to generate a test of ${totalQuestions} questions.` });
-        }
+        // 🔴 CHANGED: Robust check - triggers if flag is true OR if map data exists
+        if (customPoolDistribution === true || (poolQuestionMap && Object.keys(poolQuestionMap).length > 0)) {
+            console.log("Using Custom Granular Distribution");
 
-        // 2. Calculate required counts for each difficulty
-        const requiredCounts = {
-            easy: Math.round(totalQuestions * (difficultyDistribution.easy / 100)),
-            medium: Math.round(totalQuestions * (difficultyDistribution.medium / 100)),
-            hard: Math.round(totalQuestions * (difficultyDistribution.hard / 100))
-        };
-
-        let currentTotal = requiredCounts.easy + requiredCounts.medium + requiredCounts.hard;
-        // Adjust for rounding
-        if (currentTotal > totalQuestions) { requiredCounts.easy -= (currentTotal - totalQuestions); }
-        else if (currentTotal < totalQuestions) { requiredCounts.easy += (totalQuestions - currentTotal); }
-
-        // 3. Sample questions by difficulty
-        const selectedQuestionIds = [];
-        const questionsByDifficulty = {
-            easy: allQuestions.filter(q => q.difficulty?.toLowerCase() === 'easy'),
-            medium: allQuestions.filter(q => q.difficulty?.toLowerCase() === 'medium'),
-            hard: allQuestions.filter(q => q.difficulty?.toLowerCase() === 'hard')
-        };
-
-        for (const [difficulty, requiredCount] of Object.entries(requiredCounts)) {
-            const availableQuestions = questionsByDifficulty[difficulty];
-
-            if (requiredCount > availableQuestions.length) {
-                 return res.status(400).send({
-                     message: `Not enough ${difficulty} questions. Required: ${requiredCount}, Available: ${availableQuestions.length} in selected pools.`
-                 });
+            // VALIDATION: Ensure map exists if custom distribution is on
+            if (!poolQuestionMap || Object.keys(poolQuestionMap).length === 0) {
+                 return res.status(400).send({ message: "Custom distribution selected but no question configuration provided." });
             }
 
-            const shuffled = shuffleArray(availableQuestions);
-            const sampled = shuffled.slice(0, requiredCount);
-            selectedQuestionIds.push(...sampled.map(q => q.id));
-        }
+            // Iterate through the map provided by frontend
+            for (const [poolId, counts] of Object.entries(poolQuestionMap)) {
+                // Get questions belonging to this specific pool
+                const poolQs = allQuestions.filter(q => q.poolId === poolId);
+                
+                // Helper to select questions for a specific difficulty
+                const pickQuestions = (difficulty, count) => {
+                    const dKey = difficulty.toLowerCase();
+                    const available = poolQs.filter(q => q.difficulty === difficulty || q.difficulty?.toLowerCase() === dKey);
+                    
+                    if (available.length < count) {
+                        throw new Error(`Not enough '${difficulty}' questions in pool ${poolId}. Required: ${count}, Available: ${available.length}`);
+                    }
+                    return shuffleArray(available).slice(0, count).map(q => q.id);
+                };
 
+                try {
+                    selectedQuestionIds.push(...pickQuestions('Easy', Number(counts.easy || 0)));
+                    selectedQuestionIds.push(...pickQuestions('Medium', Number(counts.medium || 0)));
+                    selectedQuestionIds.push(...pickQuestions('Hard', Number(counts.hard || 0)));
+                } catch (err) {
+                    return res.status(400).send({ message: err.message });
+                }
+            }
+        } else {
+            // 🔴 EXISTING LOGIC: GLOBAL PERCENTAGE DISTRIBUTION
+            console.log("Using Global Percentage Distribution");
+            
+            // Validate total percentage
+            const totalPercentage = difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard;
+            if (totalPercentage !== 100) {
+                return res.status(400).send({ message: "Difficulty percentages must sum to 100." });
+            }
+
+            if (allQuestions.length < totalQuestions) {
+                return res.status(400).send({ message: `Insufficient questions (${allQuestions.length} available in selected pools) to generate a test of ${totalQuestions} questions.` });
+            }
+
+            // Calculate required counts for each difficulty
+            const requiredCounts = {
+                easy: Math.round(totalQuestions * (difficultyDistribution.easy / 100)),
+                medium: Math.round(totalQuestions * (difficultyDistribution.medium / 100)),
+                hard: Math.round(totalQuestions * (difficultyDistribution.hard / 100))
+            };
+
+            // Fix rounding errors
+            let currentTotal = requiredCounts.easy + requiredCounts.medium + requiredCounts.hard;
+            if (currentTotal > totalQuestions) requiredCounts.easy -= (currentTotal - totalQuestions);
+            else if (currentTotal < totalQuestions) requiredCounts.easy += (totalQuestions - currentTotal);
+
+            const questionsByDifficulty = {
+                easy: allQuestions.filter(q => q.difficulty?.toLowerCase() === 'easy'),
+                medium: allQuestions.filter(q => q.difficulty?.toLowerCase() === 'medium'),
+                hard: allQuestions.filter(q => q.difficulty?.toLowerCase() === 'hard')
+            };
+
+            for (const [difficulty, requiredCount] of Object.entries(requiredCounts)) {
+                const availableQuestions = questionsByDifficulty[difficulty];
+                if (requiredCount > availableQuestions.length) {
+                    return res.status(400).send({
+                        message: `Not enough ${difficulty} questions. Required: ${requiredCount}, Available: ${availableQuestions.length} in selected pools.`
+                    });
+                }
+                const sampled = shuffleArray(availableQuestions).slice(0, requiredCount);
+                selectedQuestionIds.push(...sampled.map(q => q.id));
+            }
+        }
+        // 🔴 END CHANGED LOGIC
+
+        if (selectedQuestionIds.length === 0) {
+             return res.status(400).send({ message: "Configuration resulted in 0 questions selected." });
+        }
+        
+        // Final shuffle of the complete list so questions from different pools are mixed
         shuffleArray(selectedQuestionIds);
 
         // 4. Create the Test Document in Firestore
@@ -470,7 +515,13 @@ app.post('/api/tests/release-random', async (req, res) => {
             testName,
             courseId,
             durationMinutes: parseInt(durationMinutes),
-            questionIds: selectedQuestionIds,
+            questionConfig: {
+                selectedPoolIds,
+                difficultyDistribution,
+                customPoolDistribution,
+                poolQuestionMap,
+                totalQuestions
+            },
             sourcePoolIds: selectedPoolIds,
             status: releaseOption === 'now' ? 'active' : 'scheduled',
             createdBy,
@@ -481,15 +532,13 @@ app.post('/api/tests/release-random', async (req, res) => {
             testData.scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
         }
 
-        // --- NEW: Handle Scheduled End Time ---
         if (endOption === 'schedule' && endDate && endTime) {
             testData.scheduledEnd = new Date(`${endDate}T${endTime}`).toISOString();
         }
-        // ------------------------------------
 
         await db.collection("tests").add(testData);
 
-        res.status(201).send({ message: 'Test released successfully with random question selection!' });
+        res.status(201).send({ message: 'Test released successfully!' });
 
     } catch (error) {
         console.error("Error releasing test with random questions:", error);
@@ -627,7 +676,10 @@ app.post('/api/tests/available', async (req, res) => {
                     status: test.status,
                     scheduledFor: test.scheduledFor,
                     scheduledEnd: test.scheduledEnd, // Include scheduledEnd
-                    questionCount: test.questionIds ? test.questionIds.length : 0
+                    questionCount: testData.questionConfig?.totalQuestions
+                        || testData.questionIds?.length
+                        || 0
+
                 });
             }
         }
@@ -695,7 +747,7 @@ app.post('/api/tests/start-specific', async (req, res) => {
             if (inProgressTestDoc) {
                 const testData = inProgressTestDoc.data();
                 const questionsForStudent = testData.questions.map(({ correctOptionIndex, ...rest }) => rest);
-                 return res.status(200).send({
+                return res.status(200).send({
                     testId: inProgressTestDoc.id,
                     questions: questionsForStudent,
                     startTime: testData.startTime,
@@ -716,7 +768,7 @@ app.post('/api/tests/start-specific', async (req, res) => {
 
         // --- NEW: Disallow start if scheduled end time has passed ---
         if (test.scheduledEnd && new Date(test.scheduledEnd) <= new Date()) {
-             // Force status update to inactive in case the job didn't run, but still block start
+            // Force status update to inactive in case the job didn't run, but still block start
             await testDoc.ref.update({ status: 'inactive' });
             return res.status(400).send({ message: 'Test has expired and can no longer be started.' });
         }
@@ -725,23 +777,93 @@ app.post('/api/tests/start-specific', async (req, res) => {
             return res.status(400).send({ message: 'Test is not available (either scheduled or inactive).' });
         }
         // -------------------------------------------------------------
+if (
+    test.questionConfig?.selectedPoolIds &&
+    test.questionConfig.selectedPoolIds.length > 10
+) {
+    return res.status(400).send({
+        message: 'Too many pools selected. Maximum allowed is 10.'
+    });
+}
 
-        const questions = [];
-        if (test.questionIds && test.questionIds.length > 0) {
-            const questionPromises = test.questionIds.map(id => db.collection('questions').doc(id).get());
-            const questionDocs = await Promise.all(questionPromises);
 
-            questionDocs.forEach(doc => {
-                if (doc.exists) {
-                    questions.push({ id: doc.id, ...doc.data() });
-                }
-            });
-        }
+// 🔑 Generate UNIQUE questions for this student at start time
 
-        if (questions.length === 0) {
-            return res.status(404).send({ message: 'No questions found for this test.' });
-        }
-        const shuffledQuestions = shuffleArray(questions);
+const usedQuestionIds = new Set();
+
+// Fetch all eligible questions for this test
+const questionsSnapshot = await db.collection('questions')
+    .where('courseId', '==', test.courseId)
+    .where('poolId', 'in', test.questionConfig.selectedPoolIds)
+    .get();
+
+const allQuestions = questionsSnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+}));
+
+if (allQuestions.length === 0) {
+    return res.status(404).send({ message: 'No questions available for this test.' });
+}
+
+// Helper: pick questions by difficulty without overlap
+const pick = (difficulty, count) => {
+    const pool = allQuestions.filter(q =>
+        q.difficulty?.toLowerCase() === difficulty &&
+        !usedQuestionIds.has(q.id)
+    );
+
+    if (pool.length < count) {
+        throw new Error(`Not enough ${difficulty} questions.`);
+    }
+
+    const selected = shuffleArray(pool).slice(0, count);
+    selected.forEach(q => usedQuestionIds.add(q.id));
+    return selected;
+};
+
+let shuffledQuestions = [];
+
+const cfg = test.questionConfig;
+
+// MODE A: Custom pool-wise distribution
+if (cfg.customPoolDistribution && cfg.poolQuestionMap) {
+    for (const [poolId, counts] of Object.entries(cfg.poolQuestionMap)) {
+        shuffledQuestions.push(...pick('easy', counts.easy || 0));
+        shuffledQuestions.push(...pick('medium', counts.medium || 0));
+        shuffledQuestions.push(...pick('hard', counts.hard || 0));
+    }
+}
+// MODE B: Global percentage distribution
+else {
+    const tq = cfg.totalQuestions;
+    const dist = cfg.difficultyDistribution;
+
+    shuffledQuestions.push(
+        ...pick('easy', Math.round(tq * dist.easy / 100)),
+        ...pick('medium', Math.round(tq * dist.medium / 100)),
+        ...pick('hard', Math.round(tq * dist.hard / 100))
+    );
+}
+
+// Final shuffle so difficulty/pool order is mixed
+shuffleArray(shuffledQuestions);
+if (shuffledQuestions.length !== cfg.totalQuestions) {
+  const diff = cfg.totalQuestions - shuffledQuestions.length;
+
+if (diff > 0) {
+    const extra = shuffleArray(
+        allQuestions.filter(q => !usedQuestionIds.has(q.id))
+    ).slice(0, diff);
+    shuffledQuestions.push(...extra);
+}
+else if (diff < 0) {
+    shuffledQuestions = shuffledQuestions.slice(0, cfg.totalQuestions);
+}
+}
+
+
+
 
         const studentTestDoc = {
             studentId,
@@ -874,8 +996,8 @@ app.get('/api/faculty/course-analysis/:courseId', async (req, res) => {
         }
 
         if (testIds.length > 10) {
-             // WARNING: Cannot use 'in' query on more than 10 test IDs. This simplified code skips detailed performance.
-             console.warn("Too many tests (>10), aggregation might be incomplete.");
+            // WARNING: Cannot use 'in' query on more than 10 test IDs. This simplified code skips detailed performance.
+            console.warn("Too many tests (>10), aggregation might be incomplete.");
         }
 
         const studentTestsSnapshot = await db.collection('studentTests')
@@ -1052,19 +1174,37 @@ app.get('/api/tests/missed-details/:testId', async (req, res) => {
         if (testData.status === 'active') {
             return res.status(400).send({ message: 'Test is still active or scheduled. Cannot view analysis yet.' });
         }
+        // 🔒 Firestore safety check for random tests
+if (
+    testData.questionConfig &&
+    testData.questionConfig.selectedPoolIds &&
+    testData.questionConfig.selectedPoolIds.length > 10
+) {
+    return res.status(400).send({
+        message: 'Cannot load missed test details: too many pools.'
+    });
+}
 
-        const questions = [];
-        if (testData.questionIds && testData.questionIds.length > 0) {
-            const questionPromises = testData.questionIds.map(id => db.collection('questions').doc(id).get());
-            const questionDocs = await Promise.all(questionPromises);
 
-            questionDocs.forEach(doc => {
-                if (doc.exists) {
-                    // Include the correct answer for review purposes
-                    questions.push({ id: doc.id, ...doc.data() });
-                }
-            });
-        }
+        let questions = [];
+
+if (testData.questionIds) {
+  // Whole-pool test (old behavior)
+  const docs = await Promise.all(
+    testData.questionIds.map(id => db.collection('questions').doc(id).get())
+  );
+  docs.forEach(d => d.exists && questions.push({ id: d.id, ...d.data() }));
+}
+else if (testData.questionConfig) {
+  // Random test → regenerate once for review
+  const snap = await db.collection('questions')
+    .where('courseId', '==', testData.courseId)
+    .where('poolId', 'in', testData.questionConfig.selectedPoolIds)
+    .get();
+
+  questions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 
         // Construct the review data in a format consistent with 'studentTests' results for the frontend ReviewScreen.jsx
         res.status(200).send({
@@ -1084,6 +1224,11 @@ app.get('/api/tests/missed-details/:testId', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+// --- START THE SERVER ---
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n==============================================`);
+    console.log(`  BACKEND STATUS: RUNNING`);
+    console.log(`  Local Access:   http://localhost:${PORT}`);
+    console.log(`  Network Access: http://172.29.23.168:${PORT}`);
+    console.log(`==============================================\n`);
 });
