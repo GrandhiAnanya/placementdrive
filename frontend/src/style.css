@@ -1335,3 +1335,117 @@ hr.divider {
 .navbar {
     overflow: visible; /* Required to show the dropdown */
 }
+/* ===== FIXED TIMER & SCROLLING FIXES ===== */
+
+/* This container MUST NOT have 'overflow: hidden' for sticky to work */
+.test-screen-container {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.test-content-padding {
+    padding: 0 2rem 2rem 2rem;
+}
+
+.sticky-test-header {
+    position: sticky !important; /* Force sticky positioning */
+    top: 60px; /* Aligns below the primary site navbar */
+    z-index: 1000; /* Stays above questions */
+    background-color: white;
+    padding: 1.2rem 2rem;
+    border-bottom: 2px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.test-header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.test-title {
+    margin: 0;
+    font-size: 1.4rem;
+    color: #1f2937;
+    font-weight: 700;
+}
+
+/* Timer pill styling */
+.timer {
+    background: #1f2937;
+    color: #D22D64;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-size: 1.5rem;
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: 700;
+    border: 2px solid #D22D64;
+    min-width: 110px;
+    text-align: center;
+}
+
+/* ===== FIXED TIMEOUT MODAL (Always Centered) ===== */
+#timeout-message {
+    position: fixed !important; /* Locks to the screen, not the page */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(17, 24, 39, 0.98); 
+    display: none; 
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999; /* Higher than sticky header */
+    backdrop-filter: blur(10px);
+}
+
+.timeout-card {
+    background: white;
+    color: #1f2937;
+    padding: 3rem;
+    border-radius: 16px;
+    text-align: center;
+    max-width: 450px;
+    width: 90%;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    animation: modalSlideUp 0.4s ease-out;
+}
+
+/* ===== ANIMATIONS ===== */
+.timeout-spinner {
+    width: 60px;
+    height: 60px;
+    border: 6px solid #f3f4f6;
+    border-top: 6px solid #D22D64;
+    border-radius: 50%;
+    margin: 0 auto 1.5rem auto;
+    animation: spin 1s linear infinite;
+}
+
+.submitting-bar {
+    width: 100%;
+    height: 8px;
+    background-color: #f3f4f6;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+.submitting-progress {
+    width: 0%;
+    height: 100%;
+    background-color: #D22D64;
+    animation: fillProgress 5s linear forwards;
+}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes fillProgress { 0% { width: 0%; } 100% { width: 100%; } }
+@keyframes modalSlideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
