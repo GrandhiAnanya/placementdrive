@@ -403,8 +403,8 @@ app.post('/api/tests/release-random', async (req, res) => {
             endDate,
             endTime,
             // 🔴 NEW FIELDS FROM FRONTEND
-            customPoolDistribution,
-            poolQuestionMap
+            customPoolDistribution=false,
+            poolQuestionMap={}
         } = req.body;
 
         if (!testName || !courseId || !durationMinutes || !createdBy || selectedPoolIds.length === 0) {
@@ -510,6 +510,10 @@ app.post('/api/tests/release-random', async (req, res) => {
         // Final shuffle of the complete list so questions from different pools are mixed
         shuffleArray(selectedQuestionIds);
 
+
+
+
+
         // 4. Create the Test Document in Firestore
         const testData = {
             testName,
@@ -518,8 +522,8 @@ app.post('/api/tests/release-random', async (req, res) => {
             questionConfig: {
                 selectedPoolIds,
                 difficultyDistribution,
-                customPoolDistribution,
-                poolQuestionMap,
+                customPoolDistribution: Boolean(customPoolDistribution),
+                poolQuestionMap: poolQuestionMap || {},
                 totalQuestions
             },
             sourcePoolIds: selectedPoolIds,
@@ -546,8 +550,7 @@ app.post('/api/tests/release-random', async (req, res) => {
     }
 });
 
-
-// Faculty Route: Release a Test - WHOLE POOL RELEASE
+        // Faculty Route: Release a Test - WHOLE POOL RELEASE
 app.post('/api/tests/release-whole-pool', async (req, res) => {
     try {
         const {
@@ -587,7 +590,8 @@ app.post('/api/tests/release-whole-pool', async (req, res) => {
             testName,
             courseId,
             durationMinutes: parseInt(durationMinutes),
-            questionIds: questionIds,
+            questionIds,
+            totalQuestions: questionIds.length, // ✅ ADD THIS
             sourcePoolIds: selectedPoolIds,
             status: releaseOption === 'now' ? 'active' : 'scheduled',
             createdBy,
@@ -776,6 +780,59 @@ app.post('/api/tests/start-specific', async (req, res) => {
         if (test.status !== 'active') {
             return res.status(400).send({ message: 'Test is not available (either scheduled or inactive).' });
         }
+        /* ======================================================
+   ✅ WHOLE-POOL TESTS — MUST RUN FIRST
+   ====================================================== */
+if (Array.isArray(test.questionIds)) {
+
+    const docs = await Promise.all(
+        test.questionIds.map(id =>
+            db.collection('questions').doc(id).get()
+        )
+    );
+
+    const questions = docs
+        .filter(d => d.exists)
+        .map(d => ({ id: d.id, ...d.data() }));
+
+    if (questions.length === 0) {
+        return res.status(400).send({ message: 'No questions found for this test.' });
+    }
+
+    const studentTestDoc = {
+        studentId,
+        originalTestId: testId,
+        testName: test.testName,
+        courseId: test.courseId,
+        durationMinutes: test.durationMinutes,
+        startTime: new Date().toISOString(),
+        status: 'in-progress',
+        questions,
+        answers: {}
+    };
+
+    const testRef = await db.collection('studentTests').add(studentTestDoc);
+
+    const questionsForStudent = questions.map(
+        ({ correctOptionIndex, ...rest }) => rest
+    );
+
+    return res.status(201).send({
+        testId: testRef.id,
+        questions: questionsForStudent,
+        startTime: studentTestDoc.startTime,
+        durationMinutes: studentTestDoc.durationMinutes,
+        testName: studentTestDoc.testName
+    });
+}
+if (!test.questionConfig && !Array.isArray(test.questionIds)) {
+    return res.status(400).send({
+        message: 'Invalid test configuration.'
+    });
+}
+
+
+
         // -------------------------------------------------------------
 if (
     test.questionConfig?.selectedPoolIds &&
@@ -790,11 +847,11 @@ if (
 // 🔑 Generate UNIQUE questions for this student at start time
 
 const usedQuestionIds = new Set();
+const cfg = test.questionConfig;
 
-// Fetch all eligible questions for this test
 const questionsSnapshot = await db.collection('questions')
     .where('courseId', '==', test.courseId)
-    .where('poolId', 'in', test.questionConfig.selectedPoolIds)
+    .where('poolId', 'in', cfg.selectedPoolIds)
     .get();
 
 const allQuestions = questionsSnapshot.docs.map(doc => ({
@@ -802,20 +859,43 @@ const allQuestions = questionsSnapshot.docs.map(doc => ({
     ...doc.data()
 }));
 
-if (allQuestions.length === 0) {
-    return res.status(404).send({ message: 'No questions available for this test.' });
+// 🔐 STRICT VALIDATION — RUN ONCE
+if (cfg.customPoolDistribution) {
+    const expected = Object.values(cfg.poolQuestionMap || {}).reduce(
+        (sum, c) => sum + (c.easy || 0) + (c.medium || 0) + (c.hard || 0),
+        0
+    );
+
+    if (expected !== cfg.totalQuestions) {
+        return res.status(400).send({
+            message: `Total questions (${cfg.totalQuestions}) does not match pool distribution sum (${expected})`
+        });
+    }
 }
 
-// Helper: pick questions by difficulty without overlap
-const pick = (difficulty, count) => {
+// helper for pool-wise
+const pickFromPool = (poolId, difficulty, count) => {
     const pool = allQuestions.filter(q =>
+        q.poolId === poolId &&
         q.difficulty?.toLowerCase() === difficulty &&
         !usedQuestionIds.has(q.id)
     );
 
     if (pool.length < count) {
-        throw new Error(`Not enough ${difficulty} questions.`);
+        throw new Error(`Not enough ${difficulty} questions in pool ${poolId}`);
     }
+
+    const selected = shuffleArray(pool).slice(0, count);
+    selected.forEach(q => usedQuestionIds.add(q.id));
+    return selected;
+};
+
+// helper for percentage mode
+const pick = (difficulty, count) => {
+    const pool = allQuestions.filter(q =>
+        q.difficulty?.toLowerCase() === difficulty &&
+        !usedQuestionIds.has(q.id)
+    );
 
     const selected = shuffleArray(pool).slice(0, count);
     selected.forEach(q => usedQuestionIds.add(q.id));
@@ -824,17 +904,17 @@ const pick = (difficulty, count) => {
 
 let shuffledQuestions = [];
 
-const cfg = test.questionConfig;
-
-// MODE A: Custom pool-wise distribution
-if (cfg.customPoolDistribution && cfg.poolQuestionMap) {
+// MODE A: custom pool-wise
+if (cfg.customPoolDistribution) {
     for (const [poolId, counts] of Object.entries(cfg.poolQuestionMap)) {
-        shuffledQuestions.push(...pick('easy', counts.easy || 0));
-        shuffledQuestions.push(...pick('medium', counts.medium || 0));
-        shuffledQuestions.push(...pick('hard', counts.hard || 0));
+        shuffledQuestions.push(
+            ...pickFromPool(poolId, 'easy', counts.easy || 0),
+            ...pickFromPool(poolId, 'medium', counts.medium || 0),
+            ...pickFromPool(poolId, 'hard', counts.hard || 0)
+        );
     }
 }
-// MODE B: Global percentage distribution
+// MODE B: percentage
 else {
     const tq = cfg.totalQuestions;
     const dist = cfg.difficultyDistribution;
@@ -846,21 +926,12 @@ else {
     );
 }
 
-// Final shuffle so difficulty/pool order is mixed
 shuffleArray(shuffledQuestions);
-if (shuffledQuestions.length !== cfg.totalQuestions) {
-  const diff = cfg.totalQuestions - shuffledQuestions.length;
 
-if (diff > 0) {
-    const extra = shuffleArray(
-        allQuestions.filter(q => !usedQuestionIds.has(q.id))
-    ).slice(0, diff);
-    shuffledQuestions.push(...extra);
-}
-else if (diff < 0) {
-    shuffledQuestions = shuffledQuestions.slice(0, cfg.totalQuestions);
-}
-}
+
+
+
+
 
 
 
@@ -1071,6 +1142,44 @@ app.get('/api/faculty/course-analysis/:courseId', async (req, res) => {
         res.status(500).send({ message: 'Failed to fetch course analytics' });
     }
 });
+// Faculty Route: Get scores for a specific test
+app.get('/api/faculty/test-scores/:testId', async (req, res) => {
+    try {
+        const { testId } = req.params;
+
+        const snapshot = await db.collection('studentTests')
+            .where('originalTestId', '==', testId)
+            .where('status', '==', 'completed')
+            .get();
+
+        if (snapshot.empty) {
+            return res.status(200).send([]);
+        }
+
+        const studentIds = snapshot.docs.map(d => d.data().studentId);
+        const userProfiles = await fetchUserProfiles(studentIds);
+
+        const results = snapshot.docs.map(doc => {
+            const data = doc.data();
+            const profile = userProfiles.get(data.studentId) || {};
+
+            return {
+                studentId: data.studentId,
+                studentName: profile.name || 'Student',
+                studentRollNo: profile.rollNo || null,
+                score: data.score || 0,
+                completedAt: data.endTime
+            };
+        });
+
+        res.status(200).send(results);
+
+    } catch (error) {
+        console.error('Error fetching test scores:', error);
+        res.status(500).send({ message: 'Failed to fetch test scores' });
+    }
+});
+
 
 // Faculty Route: Get individual student analysis for a course (unchanged)
 app.get('/api/faculty/student-analysis/:courseId/:studentId', async (req, res) => {
@@ -1196,14 +1305,11 @@ if (testData.questionIds) {
   docs.forEach(d => d.exists && questions.push({ id: d.id, ...d.data() }));
 }
 else if (testData.questionConfig) {
-  // Random test → regenerate once for review
-  const snap = await db.collection('questions')
-    .where('courseId', '==', testData.courseId)
-    .where('poolId', 'in', testData.questionConfig.selectedPoolIds)
-    .get();
-
-  questions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return res.status(400).send({
+        message: 'Cannot review missed random tests because question sets are student-specific.'
+    });
 }
+
 
 
         // Construct the review data in a format consistent with 'studentTests' results for the frontend ReviewScreen.jsx
