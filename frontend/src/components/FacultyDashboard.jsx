@@ -112,9 +112,15 @@ function FacultyDashboard({ user, onLogout }) {
         endTime: '',       
     });
 
+    //scores
+    const [selectedTestForScores, setSelectedTestForScores] = useState(null);
+const [testScores, setTestScores] = useState([]);
+
+
     const [message, setMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [uploadFile, setUploadFile] = useState(null);
+
 
     const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -253,6 +259,21 @@ function FacultyDashboard({ user, onLogout }) {
             fetchCourseAnalytics();
         }
     }, [selectedSubject, fetchQuestions, fetchTests, fetchCourseAnalytics, fetchPools]);
+    const fetchTestScores = async (testId) => {
+    setIsLoadingAnalytics(true);
+    setSelectedTestForScores(testId);
+    try {
+        const response = await fetch(`${API_URL}/api/faculty/test-scores/${testId}`);
+        if (response.ok) {
+            setTestScores(await response.json());
+        }
+    } catch (err) {
+        setMessage('Error fetching test scores');
+    } finally {
+        setIsLoadingAnalytics(false);
+    }
+};
+
 
     // --- Helper Functions ---
     // Calculates available questions per difficulty for a specific pool
@@ -488,16 +509,28 @@ function FacultyDashboard({ user, onLogout }) {
                 payload.difficultyDistribution = { easy: 0, medium: 0, hard: 0 }; 
 
             } else {
-                // --- STANDARD LOGIC (Global Percentage) ---
-                const totalPercentage = difficultyDistribution.easy + difficultyDistribution.medium + difficultyDistribution.hard;
-                if (totalPercentage !== 100 || totalQuestions <= 0) {
-                    setMessage('Error: Total questions must be > 0 and difficulty percentages must sum to 100%.');
-                    setIsSubmitting(false);
-                    return;
-                }
-                payload.totalQuestions = Number(totalQuestions);
-                payload.difficultyDistribution = difficultyDistribution;
-            }
+    // --- STANDARD LOGIC (Global Percentage) ---
+    const totalPercentage =
+        difficultyDistribution.easy +
+        difficultyDistribution.medium +
+        difficultyDistribution.hard;
+
+    if (totalPercentage !== 100 || totalQuestions <= 0) {
+        setMessage(
+            'Error: Total questions must be > 0 and difficulty percentages must sum to 100%.'
+        );
+        setIsSubmitting(false);
+        return;
+    }
+
+    payload.totalQuestions = Number(totalQuestions);
+    payload.difficultyDistribution = difficultyDistribution;
+
+    // ✅ CRITICAL FIX (ADD THESE TWO LINES)
+    payload.customPoolDistribution = false;
+    payload.poolQuestionMap = {};
+}
+
 
         } else {
             // 'whole-pool'
@@ -796,7 +829,8 @@ function FacultyDashboard({ user, onLogout }) {
                     <p></p>
                     {/* Tab Navigation */}
                     <div className="faculty-tabs">
-                        {['create', 'view', 'release', 'analytics'].map(tab => (
+                       {['create', 'view', 'release', 'analytics', 'scores'].map(tab => (
+
                             <button
                                 key={tab}
                                 className={`faculty-tab ${activeTab === tab ? 'active' : ''}`}
@@ -1405,7 +1439,8 @@ function FacultyDashboard({ user, onLogout }) {
                     )}
 
                     {/* Tests List (Displayed outside the analytics tab) */}
-                    {activeTab !== 'analytics' && tests.length > 0 && (
+                    {!['analytics', 'scores'].includes(activeTab) && tests.length > 0 && (
+
                         <div style={{ marginTop: '2rem' }}>
                             <h3>Released Tests ({tests.length})</h3>
                             <div className="tests-grid">
@@ -1432,6 +1467,91 @@ function FacultyDashboard({ user, onLogout }) {
                             </div>
                         </div>
                     )}
+                    {/* --- 5. Scores Tab --- */}
+{activeTab === 'scores' && (
+    <div className="analytics-dashboard">
+        {!selectedTestForScores ? (
+            <>
+                <h3>Test Scores - {selectedSubject.name}</h3>
+
+                <div className="tests-grid">
+                    {tests.length === 0 ? (
+                        <p>No tests released yet.</p>
+                    ) : (
+                        tests.map(test => (
+                            <div
+                                key={test.id}
+                                className="test-card"
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => fetchTestScores(test.id)}
+                            >
+                                <div className="test-header">
+                                    <h4>{test.testName}</h4>
+                                    <span className={`test-status status-${test.status}`}>
+                                        {test.status}
+                                    </span>
+                                </div>
+                                <div className="test-details">
+                                    <p>Duration: {test.durationMinutes} minutes</p>
+                                    <p>Attempts: {
+                                        analytics?.studentPerformance
+                                            ?.filter(s => s.attempts > 0).length || 0
+                                    }</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </>
+        ) : (
+            <>
+                <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                        setSelectedTestForScores(null);
+                        setTestScores([]);
+                    }}
+                >
+                    ← Back to Tests
+                </button>
+
+                <h3 style={{ marginTop: '1rem' }}>
+  Student Scores ({testScores.length} attempts)
+</h3>
+
+
+                {isLoadingAnalytics ? (
+                    <p>Loading scores...</p>
+                ) : testScores.length === 0 ? (
+                    <p>No students have completed this test yet.</p>
+                ) : (
+                    <div className="analytics-card">
+                        <div className="students-list">
+                            {testScores
+                                .sort((a, b) => b.score - a.score)
+                                .map(student => (
+                                    <div key={student.studentId} className="student-item">
+                                        <div className="student-info">
+                                            <strong>
+                                                {student.studentName}
+                                                {student.studentRollNo
+                                                    ? ` (${student.studentRollNo})`
+                                                    : ''}
+                                            </strong>
+                                        </div>
+                                        <div className="student-scores">
+                                            <span>{student.score.toFixed(1)}%</span>
+                                        </div>
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+                )}
+            </>
+        )}
+    </div>
+)}
+
                 </div>
                  )}
             </main>
