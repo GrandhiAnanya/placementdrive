@@ -12,6 +12,7 @@ const AdminDashboard = ({ user, onLogout }) => {
     const [uploadFile, setUploadFile] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [message, setMessage] = useState('');
+    const [bulkUploadError, setBulkUploadError] = useState('');
 
     const getAuthToken = async () => {
         if (!user || typeof user.getIdToken !== 'function') {
@@ -20,10 +21,63 @@ const AdminDashboard = ({ user, onLogout }) => {
         return await user.getIdToken();
     };
 
+
+    const isValidStudentEmail = (email) => {
+    return email.toLowerCase().endsWith('@bl.students.amrita.edu');
+    };
+
+    const validateCSVContent = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target.result;
+            const lines = text.split('\n');
+            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+            
+            const emailIndex = headers.indexOf('email');
+            const roleIndex = headers.indexOf('role');
+            
+            if (emailIndex === -1 || roleIndex === -1) {
+                reject(new Error('CSV must contain "email" and "role" columns'));
+                return;
+            }
+            
+            const errors = [];
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                
+                const cells = lines[i].split(',');
+                const email = cells[emailIndex]?.trim();
+                const role = cells[roleIndex]?.trim().toLowerCase();
+                
+                if (role === 'student' && email && !isValidStudentEmail(email)) {
+                    errors.push(`Row ${i}: Student email "${email}" must end with @bl.students.amrita.edu`);
+                }
+            }
+            
+            if (errors.length > 0) {
+                reject(new Error(errors.join('\n')));
+            } else {
+                resolve();
+            }
+        };
+        reader.readAsText(file);
+    });
+};
+
+
     const handleAddUser = async (e) => {
         e.preventDefault();
+
+        if (role === 'student' && !isValidStudentEmail(email)) {
+        setMessage('Error: Student email must end with @bl.students.amrita.edu');
+        return;
+    }
+
         setIsSubmitting(true);
         setMessage('');
+
+        
 
         try {
             const token = await getAuthToken();
@@ -53,55 +107,60 @@ const AdminDashboard = ({ user, onLogout }) => {
         }
     };
 
-    const handleFileUpload = async (e) => {
-        e.preventDefault();
-        if (!uploadFile) {
-            setMessage('Error: Please select a file.');
-            return;
-        }
-        
-        setIsSubmitting(true);
-        setMessage('');
-        
-        const formData = new FormData();
-        formData.append('usersFile', uploadFile);
-
-        try {
-            const token = await getAuthToken();
-             // --- FIX: Use the relative path for the file upload ---
-            const response = await fetch('/api/admin/upload-users', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData,
-            });
-
-            // If the response is not JSON, it could still be an error.
-            if (!response.ok) {
-                 const errorText = await response.text();
-                 throw new Error(`Server responded with ${response.status}: ${errorText}`);
-            }
-
-            const result = await response.json();
-
-            let formattedMessage = result.message;
-            if (result.errors && result.errors.length > 0) {
-                formattedMessage += `\nErrors:\n- ${result.errors.join('\n- ')}`;
-            }
-            setMessage(formattedMessage);
-            
-            setUploadFile(null);
-            if(document.getElementById('file-upload-input')) {
-                document.getElementById('file-upload-input').value = '';
-            }
-
-        } catch (error) {
-            // This will now catch the HTML error and display it, if it still happens.
-            setMessage(`Error: ${error.message}`);
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+   const handleFileUpload = async (e) => {
+    e.preventDefault();
+    if (!uploadFile) {
+        setBulkUploadError('Error: Please select a file.'); // CHANGED: setMessage → setBulkUploadError
+        return;
+    }
     
+    setIsSubmitting(true);
+    setBulkUploadError(''); // CHANGED: clear bulk upload error instead of global message
+    
+    // Validate CSV
+    try {
+        await validateCSVContent(uploadFile);
+    } catch (error) {
+        setBulkUploadError(`Validation Error:\n${error.message}`); // CHANGED: use bulkUploadError
+        setIsSubmitting(false);
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('usersFile', uploadFile);
+
+    try {
+        const token = await getAuthToken();
+        const response = await fetch('/api/admin/upload-users', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Server responded with ${response.status}: ${errorText}`);
+        }
+
+        const result = await response.json();
+
+        let formattedMessage = result.message;
+        if (result.errors && result.errors.length > 0) {
+            formattedMessage += `\nErrors:\n- ${result.errors.join('\n- ')}`;
+        }
+        setBulkUploadError(formattedMessage); // CHANGED: show bulk upload result here
+        
+        setUploadFile(null);
+        if(document.getElementById('file-upload-input')) {
+            document.getElementById('file-upload-input').value = '';
+        }
+
+    } catch (error) {
+        setBulkUploadError(`Error: ${error.message}`); // CHANGED: use bulkUploadError
+    } finally {
+        setIsSubmitting(false);
+    }
+};
     // ... (rest of your component code: downloadCsvTemplate and the return JSX)
     const downloadCsvTemplate = () => {
         const headers = ['name', 'email', 'password', 'role'];
@@ -169,25 +228,33 @@ const AdminDashboard = ({ user, onLogout }) => {
                             Download Template
                         </span>
                     </p>
-                    <form onSubmit={handleFileUpload}>
-                        <div className="input-group">
-                            <input 
-                                id="file-upload-input"
-                                type="file" 
-                                accept=".csv" 
-                                onChange={(e) => setUploadFile(e.target.files[0])} 
-                                required 
-                            />
-                        </div>
-                        <button type="submit" disabled={isSubmitting || !uploadFile} className="btn btn-primary">
-                            {isSubmitting ? 'Uploading...' : 'Upload Users CSV'}
-                        </button>
-                    </form>
-                </div>
+                    {bulkUploadError && (
+        <div className={`message ${bulkUploadError.toLowerCase().includes('error') || bulkUploadError.toLowerCase().includes('validation') ? 'error' : 'success'}`} 
+             style={{ whiteSpace: 'pre-wrap', marginBottom: '1rem' }}>
+            {bulkUploadError}
+        </div>
+    )}
+                   <form onSubmit={handleFileUpload}>
+        <div className="input-group">
+            <input 
+                id="file-upload-input"
+                type="file" 
+                accept=".csv" 
+                onChange={(e) => {
+                    setUploadFile(e.target.files[0]);
+                    setBulkUploadError(''); // Clear error when new file is selected
+                }} 
+                required 
+            />
+        </div>
+        <button type="submit" disabled={isSubmitting || !uploadFile} className="btn btn-primary">
+            {isSubmitting ? 'Uploading...' : 'Upload Users CSV'}
+        </button>
+    </form>
+</div>
             </main>
         </div>
     );
 };
 
 export default AdminDashboard;
-
