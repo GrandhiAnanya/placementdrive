@@ -17,7 +17,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-const API_URL = 'http://localhost:5000';
+const API_URL = 'http://172.29.23.168:5000';
 
 const MOCK_COURSES = [
     { id: 'dsa', name: 'Data Structures & Algorithms', icon: '🧩' },

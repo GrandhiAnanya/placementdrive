@@ -1331,7 +1331,8 @@ else if (testData.questionConfig) {
 });
 
 // --- START THE SERVER ---
-app.listen(PORT, '0.0.0.0', () => {
+
+app.listen(PORT, () => {
     console.log(`\n==============================================`);
     console.log(`  BACKEND STATUS: RUNNING`);
     console.log(`  Local Access:   http://localhost:${PORT}`);

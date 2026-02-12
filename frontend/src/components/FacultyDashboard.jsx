@@ -29,7 +29,7 @@ import { auth } from '../firebase.js';
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend);
 
-const API_URL = 'http://localhost:5000';
+const API_URL = 'http://172.29.23.168:5000';
 
 const subjects = [
     { id: 'dsa', name: 'Data Structures & Algorithms', icon: '🧩' },
