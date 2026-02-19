@@ -751,16 +751,17 @@ app.post('/api/tests/start-specific', async (req, res) => {
         if (!existingTestsSnapshot.empty) {
             const inProgressTestDoc = existingTestsSnapshot.docs.find(doc => doc.data().status === 'in-progress');
             if (inProgressTestDoc) {
-                const testData = inProgressTestDoc.data();
-                const questionsForStudent = testData.questions.map(({ correctOptionIndex, ...rest }) => rest);
-                return res.status(200).send({
-                    testId: inProgressTestDoc.id,
-                    questions: questionsForStudent,
-                    startTime: testData.startTime,
-                    durationMinutes: testData.durationMinutes,
-                    testName: testData.testName
-                });
-            }
+    const testData = inProgressTestDoc.data();
+    // Return EVERYTHING needed to resume: questions, existing answers, and the original start time
+    return res.status(200).send({
+        testId: inProgressTestDoc.id,
+        questions: testData.questions.map(({ correctOptionIndex, ...rest }) => rest),
+        answers: testData.answers || {}, // Send back saved progress
+        startTime: testData.startTime,   // Send back original start time
+        durationMinutes: testData.durationMinutes,
+        testName: testData.testName
+    });
+}
             return res.status(400).send({ message: 'You have already taken this test.' });
         }
 
@@ -965,6 +966,24 @@ shuffleArray(shuffledQuestions);
     } catch (error) {
         console.error("Error starting specific test:", error);
         res.status(500).send({ message: 'Failed to start test' });
+    }
+});
+
+// --- NEW: REAL-TIME PROGRESS SAVING ---
+app.post('/api/tests/save-progress', async (req, res) => {
+    try {
+        const { testId, answers } = req.body;
+        if (!testId) return res.status(400).send({ message: "Test ID missing." });
+
+        await db.collection('studentTests').doc(testId).update({
+            answers: answers || {},
+            lastUpdated: new Date().toISOString()
+        });
+
+        res.status(200).send({ message: "Progress synced." });
+    } catch (error) {
+        console.error("Error syncing progress:", error);
+        res.status(500).send({ message: "Sync failed." });
     }
 });
 
