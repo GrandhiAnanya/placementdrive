@@ -14,10 +14,10 @@ import { db, auth } from '../firebase.js';
 // CHART.JS IMPORTS
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
-
+import { API_URL } from '../api';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-const API_URL = 'http://172.29.23.168:5000';
+//const API_URL = 'http://172.29.23.168:5000';
 
 const MOCK_COURSES = [
     { id: 'dsa', name: 'Data Structures & Algorithms', icon: '🧩' },
@@ -56,7 +56,7 @@ function StudentDashboard({ user, onLogout }) {
         setError('');
 
         try {
-            const availableResponse = await fetch(`${API_URL}/api/tests/available`, {
+            const availableResponse = await fetch(`${API_URL}/tests/available`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ studentId: user.uid }),
@@ -66,7 +66,7 @@ function StudentDashboard({ user, onLogout }) {
             const tests = await availableResponse.json();
             setAvailableTests(tests.filter(t => t.courseId === courseId)); 
 
-            const historyResponse = await fetch(`${API_URL}/api/tests/history`, {
+            const historyResponse = await fetch(`${API_URL}/tests/history`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ studentId: user.uid }),
@@ -164,8 +164,8 @@ function StudentDashboard({ user, onLogout }) {
       try {
         const isMissed = missedTests.some(test => test.id === testId);
         let endpoint = isMissed 
-            ? `${API_URL}/api/tests/missed-details/${testId}` 
-            : `${API_URL}/api/results/${testId}`;
+            ? `${API_URL}/tests/missed-details/${testId}` 
+            : `${API_URL}/results/${testId}`;
 
         const response = await fetch(endpoint); 
         if (!response.ok) throw new Error('Failed to fetch review data.');
@@ -184,7 +184,7 @@ function StudentDashboard({ user, onLogout }) {
         setIsLoading(true);
         setError('');
         try {
-            const response = await fetch(`${API_URL}/api/tests/start-specific`, {
+            const response = await fetch(`${API_URL}/tests/start-specific`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ studentId: user.uid, testId }),
@@ -210,7 +210,7 @@ function StudentDashboard({ user, onLogout }) {
         setIsLoading(true);
         setError('');
         try {
-            const response = await fetch(`${API_URL}/api/tests/submit`, {
+            const response = await fetch(`${API_URL}/tests/submit`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ testId: testData.testId, answers }),

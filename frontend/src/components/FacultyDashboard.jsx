@@ -10,6 +10,7 @@ import {
     updatePassword 
 } from "firebase/auth"; 
 import { auth } from '../firebase.js';
+import { API_URL } from '../api';
 //added now
 // ===== Randomization helpers (from FacultyDashboard2 logic) =====
 
@@ -29,7 +30,7 @@ import { auth } from '../firebase.js';
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend);
 
-const API_URL = 'http://172.29.23.168:5000';
+//const API_URL = 'http://172.29.23.168:5000';
 
 const subjects = [
     { id: 'dsa', name: 'Data Structures & Algorithms', icon: '🧩' },
@@ -155,7 +156,7 @@ const [testScores, setTestScores] = useState([]);
     const fetchPools = useCallback(async () => {
         if (!selectedSubject?.id) return;
         try {
-            const response = await fetch(`${API_URL}/api/pools/${selectedSubject.id}`);
+            const response = await fetch(`${API_URL}/pools/${selectedSubject.id}`);
             if (response.ok) {
                 const poolsData = await response.json();
                 setPools(poolsData);
@@ -221,7 +222,7 @@ const [testScores, setTestScores] = useState([]);
         setIsLoadingAnalytics(true);
         setMessage('');
         try {
-            const response = await fetch(`${API_URL}/api/faculty/course-analysis/${selectedSubject.id}`);
+            const response = await fetch(`${API_URL}/faculty/course-analysis/${selectedSubject.id}`);
             if (response.ok) {
                 setAnalytics(await response.json());
             } else {
@@ -238,7 +239,7 @@ const [testScores, setTestScores] = useState([]);
         if (!selectedSubject || !studentId) return;
         setIsLoadingAnalytics(true);
         try {
-            const response = await fetch(`${API_URL}/api/faculty/student-analysis/${selectedSubject.id}/${studentId}`);
+            const response = await fetch(`${API_URL}/faculty/student-analysis/${selectedSubject.id}/${studentId}`);
             if (response.ok) {
                 setStudentAnalytics(await response.json());
                 setSelectedStudent(studentId);
@@ -263,7 +264,7 @@ const [testScores, setTestScores] = useState([]);
     setIsLoadingAnalytics(true);
     setSelectedTestForScores(testId);
     try {
-        const response = await fetch(`${API_URL}/api/faculty/test-scores/${testId}`);
+        const response = await fetch(`${API_URL}/faculty/test-scores/${testId}`);
         if (response.ok) {
             setTestScores(await response.json());
         }
@@ -298,7 +299,7 @@ const [testScores, setTestScores] = useState([]);
         setMessage('');
 
         try {
-            const response = await fetch(`${API_URL}/api/pools`, {
+            const response = await fetch(`${API_URL}/pools`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -332,7 +333,7 @@ const [testScores, setTestScores] = useState([]);
         setMessage('');
 
         try {
-            const response = await fetch(`${API_URL}/api/questions`, {
+            const response = await fetch(`${API_URL}/questions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -383,7 +384,7 @@ const [testScores, setTestScores] = useState([]);
         formData.append('poolId', selectedPoolId); 
 
         try {
-            const response = await fetch(`${API_URL}/api/questions/upload`, {
+            const response = await fetch(`${API_URL}/questions/upload`, {
                 method: 'POST',
                 body: formData,
             });
@@ -465,7 +466,7 @@ const [testScores, setTestScores] = useState([]);
 
 
         if (releaseType === 'random') {
-            endpoint = `${API_URL}/api/tests/release-random`;
+            endpoint = `${API_URL}/tests/release-random`;
 
             if (testForm.customPoolDistribution) {
                 // --- CUSTOM DISTRIBUTION VALIDATION LOGIC ---
@@ -534,7 +535,7 @@ const [testScores, setTestScores] = useState([]);
 
         } else {
             // 'whole-pool'
-            endpoint = `${API_URL}/api/tests/release-whole-pool`;
+            endpoint = `${API_URL}/tests/release-whole-pool`;
         }
 
         try {

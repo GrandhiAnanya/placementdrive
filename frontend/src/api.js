@@ -1,6 +1,23 @@
 // frontend/src/api.js
 
-const API_URL = 'http://localhost:5000/api';
+const getApiUrl = () => {
+    // Get the hostname from the browser's current URL
+    const hostname = window.location.hostname;
+    
+    // If accessing via localhost
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        return 'http://localhost:5000/api';
+    }
+    
+    // If accessing via network IP (like 192.168.x.x or 10.x.x.x)
+    // Use the same IP but with port 5000 for the backend
+    return `http://${hostname}:5000/api`;
+};
+
+export const API_URL = getApiUrl();
+
+console.log('🔧 API_URL configured as:', API_URL);
+console.log('🔧 Current hostname:', window.location.hostname);
 
 export const startTest = async (studentId, courseId) => {
     try {
