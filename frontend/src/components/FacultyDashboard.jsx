@@ -1457,7 +1457,14 @@ const [testScores, setTestScores] = useState([]);
                                             </span>
                                         </div>
                                         <div className="test-details">
-                                            <p>Questions: {test.questionIds?.length || 0}</p>
+                                            <p>
+  Questions:{" "}
+  {test.totalQuestions ??
+    test.questionCount ??
+    test.questionIds?.length ??
+    0}
+</p>
+
                                             <p>Duration: {test.durationMinutes} minutes</p>
                                             {test.scheduledFor && (<p>Scheduled Start: {new Date(test.scheduledFor).toLocaleString()}</p>)}
                                             {test.scheduledEnd && (<p style={{ fontWeight: 'bold' }}>Scheduled End: {new Date(test.scheduledEnd).toLocaleString()}</p>)}

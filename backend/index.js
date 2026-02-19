@@ -519,6 +519,7 @@ app.post('/api/tests/release-random', async (req, res) => {
             testName,
             courseId,
             durationMinutes: parseInt(durationMinutes),
+            totalQuestions: Number(totalQuestions),
             questionConfig: {
                 selectedPoolIds,
                 difficultyDistribution,
@@ -591,7 +592,8 @@ app.post('/api/tests/release-whole-pool', async (req, res) => {
             courseId,
             durationMinutes: parseInt(durationMinutes),
             questionIds,
-            totalQuestions: questionIds.length, // ✅ ADD THIS
+            totalQuestions: questionIds.length, 
+
             sourcePoolIds: selectedPoolIds,
             status: releaseOption === 'now' ? 'active' : 'scheduled',
             createdBy,

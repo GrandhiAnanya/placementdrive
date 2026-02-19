@@ -15,6 +15,8 @@ import { db, auth } from '../firebase.js';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { API_URL } from '../api';
+
+
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 //const API_URL = 'http://172.29.23.168:5000';
@@ -332,21 +334,41 @@ function StudentDashboard({ user, onLogout }) {
                 </div>
 
                 <div className="card" style={{marginTop: '2rem'}}>
-                    <h3>Missed/Expired Tests ({missedTests.length})</h3>
-                    <div className="student-tests">
-                        {missedTests.length > 0 ? (
-                            missedTests.map(test => (
-                                <div key={test.id} className="test-card missed-test-card">
-                                    <div className="test-header">
-                                        <h4>{test.testName}</h4>
-                                        <span className="test-status status-inactive">MISSED</span>
-                                    </div>
-                                    <button onClick={() => viewTestReview(test.id)} className="btn btn-secondary btn-sm">View Analysis</button>
-                                </div>
-                            ))
-                        ) : <p>No missed tests found.</p>}
-                    </div>
-                </div>
+  <h3>Missed Tests ({missedTests.length})</h3>
+  <div className="student-tests">
+    {missedTests.length > 0 ? (
+      missedTests.map(test => (
+        <div key={test.id} className="test-card missed-test-card">
+          <div className="test-header">
+            <h4>{test.testName}</h4>
+            <span className="test-status status-inactive">MISSED</span>
+          </div>
+
+          {Array.isArray(test.questionIds) ? (
+  <button
+    onClick={() => viewTestReview(test.id)}
+    className="btn btn-secondary btn-sm"
+  >
+    View Questions
+  </button>
+) : (
+  <button
+    disabled
+    className="btn btn-secondary btn-sm"
+    title="Randomized tests cannot be reviewed"
+    style={{ opacity: 0.6, cursor: 'not-allowed' }}
+  >
+    Review Unavailable
+  </button>
+)}
+
+
+        </div>
+      ))
+    ) : <p>No missed tests found.</p>}
+  </div>
+</div>
+
 
                 {courseHistory.length > 0 && (
                     <div className="card" style={{marginTop: '2rem'}}>
