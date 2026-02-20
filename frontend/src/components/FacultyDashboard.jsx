@@ -1501,7 +1501,7 @@ const [testScores, setTestScores] = useState([]);
                                 </div>
                                 <div className="test-details">
                                     <p>Duration: {test.durationMinutes} minutes</p>
-                                    <p>Attempts: {
+                                    <p> Total Possible Attempts: {
                                         analytics?.studentPerformance
                                             ?.filter(s => s.attempts > 0).length || 0
                                     }</p>

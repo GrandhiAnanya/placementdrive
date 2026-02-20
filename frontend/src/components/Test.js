@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_URL } from '../api';
 
 const TestScreen = ({ testData, onTestSubmit }) => {
@@ -6,18 +6,30 @@ const TestScreen = ({ testData, onTestSubmit }) => {
     const [answers, setAnswers] = useState(testData.answers || {});
     
     // 2. Dynamic Timer Logic: Calculate time remaining based on startTime vs now
-    const calculateTimeLeft = () => {
+        const calculateTimeLeft = useCallback(() => {
         const start = new Date(testData.startTime).getTime();
         const now = new Date().getTime();
         const totalDurationMs = testData.durationMinutes * 60 * 1000;
         const elapsed = now - start;
         const remaining = Math.floor((totalDurationMs - elapsed) / 1000);
         return remaining > 0 ? remaining : 0;
-    };
+    }, [testData.startTime, testData.durationMinutes]);
 
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
     const [isAutoSubmitting, setIsAutoSubmitting] = useState(false);
     const hasSubmitted = useRef(false);
+
+     // Memoize handleAutoSubmit
+    const handleAutoSubmit = useCallback(() => {
+        if (hasSubmitted.current) return;
+        hasSubmitted.current = true;
+        setIsAutoSubmitting(true);
+        const timeoutMessage = document.getElementById('timeout-message');
+        if (timeoutMessage) timeoutMessage.style.display = 'flex';
+        setTimeout(() => onTestSubmit(answers), 4000);
+    }, [onTestSubmit, answers]);
+
+
 
     // Timer Effect
     useEffect(() => {
@@ -31,7 +43,7 @@ const TestScreen = ({ testData, onTestSubmit }) => {
             }
         }, 1000);
         return () => clearInterval(timer);
-    }, []);
+    }, [calculateTimeLeft, handleAutoSubmit]);
 
     // 3. AUTO-SAVE EFFECT: Sync answers to DB whenever they change
     useEffect(() => {
@@ -51,16 +63,9 @@ const TestScreen = ({ testData, onTestSubmit }) => {
         // Optional: Debounce to prevent too many API calls
         const delayDebounce = setTimeout(saveProgress, 1000);
         return () => clearTimeout(delayDebounce);
-    }, [answers]);
+    }, [answers, testData.testId]);
 
-    const handleAutoSubmit = () => {
-        if (hasSubmitted.current) return;
-        hasSubmitted.current = true;
-        setIsAutoSubmitting(true);
-        const timeoutMessage = document.getElementById('timeout-message');
-        if (timeoutMessage) timeoutMessage.style.display = 'flex';
-        setTimeout(() => onTestSubmit(answers), 4000);
-    };
+
 
     const handleOptionChange = (qId, optIdx) => {
         if (hasSubmitted.current) return;
@@ -117,6 +122,9 @@ const TestScreen = ({ testData, onTestSubmit }) => {
                         </div>
                     </div>
                 ))}
+                 <p style={{textAlign: 'center', marginTop: '1rem', marginBottom: '1rem', color: '#374151', fontWeight: 600}}>
+                    {Object.keys(answers).length} of {testData.questions.length} Questions Answered
+                </p>
                 <button onClick={handleSubmitClick} className="btn btn-success btn-full" disabled={isAutoSubmitting}>
                     {isAutoSubmitting ? 'Submitting...' : 'Final Submit'}
                 </button>
